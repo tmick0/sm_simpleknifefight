@@ -182,7 +182,7 @@ void Check1v1() {
         }
 	}
 
-    if (clients[INDEX_T] != 1 && clients[INDEX_CT] != 1) {
+    if (clients[INDEX_T] != -1 && clients[INDEX_CT] != -1) {
         State = STATE_1v1;
         #define msg "It's 1v1! Type !%s to knife fight!"
         PrintHintText(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
