@@ -57,7 +57,7 @@ public void OnPluginStart() {
     // init hooks
     HookConVarChange(CvarDebug, CvarsUpdated);
     HookConVarChange(CvarEnable, CvarsUpdated);
-    AddCommandListener(KnifeFightCmd, CMD_KNIFEFIGHT);
+    RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
 
     // load config
@@ -96,18 +96,22 @@ void SetCvars() {
     }
 }
 
-Action KnifeFightCmd(int client, const char[] cmd, int argc) {
+Action KnifeFightCmd(int client, int argc) {
+    if (!Enabled) {
+        return Plugin_Continue;
+    }
+
     if (Debug) {
         LogMessage("got KnifeFightCmd: state=%d voted[T]=%d voted[CT]=%d", State, Voted[INDEX_T], Voted[INDEX_CT]);
     }
 
     if (State != STATE_1v1) {
-        ReplyToCommand(client, "The %s command is only valid during a 1v1 situation", cmd);
+        ReplyToCommand(client, "The %s command is only valid during a 1v1 situation", CMD_KNIFEFIGHT);
         return Plugin_Handled;
     }
 
     if (!IsPlayerAlive(client)) {
-        ReplyToCommand(client, "The %s command is for the players who are alive", cmd);
+        ReplyToCommand(client, "The %s command is for the players who are alive", CMD_KNIFEFIGHT);
         return Plugin_Handled;
     }
 
@@ -145,7 +149,11 @@ Action KnifeFightCmd(int client, const char[] cmd, int argc) {
 
 void StartKnifeFight() {
     State = STATE_KNIFE;
-    PrintToChatAll("Let the knife fight begin!");
+    #define msg "Let the knife fight begin!"
+    PrintToChatAll(msg);
+    PrintHintText(Entity[INDEX_T], msg);
+    PrintHintText(Entity[INDEX_CT], msg);
+    #undef msg
 
     SDKHook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
     SDKHook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
@@ -157,6 +165,10 @@ void EndKnifeFight() {
 }
 
 void Check1v1() {
+    if (!Enabled || State != STATE_NOT_1v1) {
+        return;
+    }
+
     int clients[2];
     clients[INDEX_T] = -1;
     clients[INDEX_CT] = -1;
@@ -186,7 +198,9 @@ void Check1v1() {
         State = STATE_1v1;
         #define msg "It's 1v1! Type !%s to knife fight!"
         PrintHintText(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
+        PrintToChat(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
         PrintHintText(clients[INDEX_CT], msg, CMD_KNIFEFIGHT);
+        PrintToChat(clients[INDEX_CT], msg, CMD_KNIFEFIGHT);
         #undef msg
     }
 }
@@ -234,6 +248,9 @@ public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& dam
 }
 
 public Action OnPlayerDeath(Event event, const char[] eventName, bool dontBroadcast) {
+    if (!Enabled) {
+        return Plugin_Continue;
+    }
     if (Debug) {
         LogMessage("got EventPlayerDeath: state=%d", State);
     }
