@@ -215,10 +215,11 @@ public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& dam
     }
 
     if (weapon < 0) {
+        damage = 0.0;
         if (Debug) {
-            LogMessage("negative weapon entity id %d, allowing %f damage", weapon, damage);
+            LogMessage("negative weapon entity id %d, blocking %f damage", weapon, damage);
         }
-        return Plugin_Continue;
+        return Plugin_Changed;
     }
 
     char entity[ENTITY_NAME_MAX];
