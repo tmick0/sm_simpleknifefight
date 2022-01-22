@@ -59,15 +59,16 @@ public void OnPluginStart() {
     HookConVarChange(CvarEnable, CvarsUpdated);
     RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
+    HookEvent("round_end", OnRoundEnd, EventHookMode_PostNoCopy);
 
     // load config
     SetCvars();
 
     // initialize plugin state
-    ReinitState();
+    ReinitState(true);
 }
 
-void ReinitState() {
+void ReinitState(bool check) {
     if (State == STATE_KNIFE) {
         EndKnifeFight();
     }
@@ -78,7 +79,9 @@ void ReinitState() {
     Entity[INDEX_T] = -1;
     Entity[INDEX_CT] = -1;
 
-    Check1v1();
+    if (check && Enabled) {
+        Check1v1();
+    }
 }
 
 void CvarsUpdated(ConVar cvar, const char[] oldval, const char[] newval) {
@@ -92,7 +95,7 @@ void SetCvars() {
     Enabled = CvarEnable.IntValue;
 
     if (Enabled && !prevEnabled) {
-        ReinitState();
+        ReinitState(true);
     }
 }
 
@@ -264,22 +267,33 @@ public Action OnPlayerDeath(Event event, const char[] eventName, bool dontBroadc
         }
         else {
             PrintToChatAll("Nobody won the knife fight. (???)");
-            ReinitState();
+            ReinitState(false);
             return Plugin_Continue;
         }
 
         char name[128];
         GetClientName(winner, name, sizeof(name));
         PrintToChatAll("%s won the knife fight!", name);
-        ReinitState();
+        ReinitState(false);
         return Plugin_Continue;
     }
     else if (State == STATE_1v1) {
-        ReinitState();
+        ReinitState(false);
         return Plugin_Continue;
     }
     else {
         Check1v1();
         return Plugin_Continue;
     }
+}
+
+public Action OnRoundEnd(Event event, const char[] eventName, bool dontBroadcast) {
+    if (!Enabled) {
+        return Plugin_Continue;
+    }
+    if (State == STATE_KNIFE) {
+        PrintToChatAll("Nobody won the knife fight.");
+    }
+    ReinitState(false);
+    return Plugin_Handled;
 }
