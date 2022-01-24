@@ -17,6 +17,7 @@ public Plugin myinfo =
 #define CVAR_DEBUG "sm_simpleknifefight_debug"
 
 #define CMD_KNIFEFIGHT "knifefight"
+#define CMD_KNIFEFIGHT_SHORT "kf"
 
 #define ENTITY_NAME_MAX 128
 
@@ -58,6 +59,7 @@ public void OnPluginStart() {
     HookConVarChange(CvarDebug, CvarsUpdated);
     HookConVarChange(CvarEnable, CvarsUpdated);
     RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
+    RegConsoleCmd(CMD_KNIFEFIGHT_SHORT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
     HookEvent("round_end", OnRoundEnd, EventHookMode_PostNoCopy);
 
@@ -69,10 +71,6 @@ public void OnPluginStart() {
 }
 
 void ReinitState(bool check) {
-    if (State == STATE_KNIFE) {
-        EndKnifeFight();
-    }
-
     State = STATE_NOT_1v1;
     Voted[INDEX_T] = 0;
     Voted[INDEX_CT] = 0;
@@ -113,21 +111,18 @@ Action KnifeFightCmd(int client, int argc) {
         return Plugin_Handled;
     }
 
-    if (!IsPlayerAlive(client)) {
-        ReplyToCommand(client, "The %s command is for the players who are alive", CMD_KNIFEFIGHT);
-        return Plugin_Handled;
-    }
-
-    int team = GetClientTeam(client);
     int slot;
-    if (team == TEAM_T) {
+    int other_slot;
+    if (client == Entity[INDEX_T]) {
         slot = INDEX_T;
+        other_slot = INDEX_CT;
     }
-    else if (team == TEAM_CT) {
+    else if (client == Entity[INDEX_CT]) {
         slot = INDEX_CT;
+        other_slot = INDEX_T;
     }
     else {
-        ReplyToCommand(client, "Could not determine your team, this shouldn't happen, tell a dev");
+        ReplyToCommand(client, "The %s command is only for the players who are alive", CMD_KNIFEFIGHT);
         return Plugin_Handled;
     }
 
@@ -137,34 +132,24 @@ Action KnifeFightCmd(int client, int argc) {
     }
 
     Voted[slot] = 1;
-    Entity[slot] = client;
 
     char name[128];
-    GetClientName(client, name, sizeof(name));
+    GetClientName(client, name, sizeof(name))
+    
     PrintToChatAll("%s has agreed to a knife fight!", name);
-
-    if (Voted[INDEX_T] && Voted[INDEX_CT]) {
-        StartKnifeFight();
+    if (!Voted[other_slot]) {
+        PrintHintText(Entity[other_slot], "%s has challenged you to a knife fight! Type !%s (or !%s) to accept.", name, CMD_KNIFEFIGHT, CMD_KNIFEFIGHT_SHORT);
+    }
+    else {
+        State = STATE_KNIFE;
+        #define msg "Let the knife fight begin!"
+        PrintToChatAll(msg);
+        PrintHintText(Entity[INDEX_T], msg);
+        PrintHintText(Entity[INDEX_CT], msg);
+        #undef msg
     }
 
     return Plugin_Handled;
-}
-
-void StartKnifeFight() {
-    State = STATE_KNIFE;
-    #define msg "Let the knife fight begin!"
-    PrintToChatAll(msg);
-    PrintHintText(Entity[INDEX_T], msg);
-    PrintHintText(Entity[INDEX_CT], msg);
-    #undef msg
-
-    SDKHook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
-    SDKHook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
-}
-
-void EndKnifeFight() {
-    SDKUnhook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
-    SDKUnhook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
 void Check1v1() {
@@ -172,9 +157,8 @@ void Check1v1() {
         return;
     }
 
-    int clients[2];
-    clients[INDEX_T] = -1;
-    clients[INDEX_CT] = -1;
+    Entity[INDEX_T] = -1;
+    Entity[INDEX_CT] = -1;
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
@@ -189,41 +173,40 @@ void Check1v1() {
                 continue;
             }
 
-            if(clients[team] != -1) {
+            if(Entity[team] != -1) {
                 return;
             }
 
-            clients[team] = i;
+            Entity[team] = i;
         }
 	}
 
-    if (clients[INDEX_T] != -1 && clients[INDEX_CT] != -1) {
+    if (Entity[INDEX_T] != -1 && Entity[INDEX_CT] != -1) {
         State = STATE_1v1;
-        #define msg "It's 1v1! Type !%s to knife fight!"
-        PrintHintText(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintToChat(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintHintText(clients[INDEX_CT], msg, CMD_KNIFEFIGHT);
-        PrintToChat(clients[INDEX_CT], msg, CMD_KNIFEFIGHT);
+        #define msg "It's 1v1! Type !%s (or !%s) to knife fight!"
+        PrintHintText(Entity[INDEX_T], msg, CMD_KNIFEFIGHT, CMD_KNIFEFIGHT_SHORT);
+        PrintToChat(Entity[INDEX_T], msg, CMD_KNIFEFIGHT, CMD_KNIFEFIGHT_SHORT);
+        PrintHintText(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT, CMD_KNIFEFIGHT_SHORT);
+        PrintToChat(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT, CMD_KNIFEFIGHT_SHORT);
         #undef msg
     }
 }
 
-public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3])
-{
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2]) {
     if (!Enabled || State != STATE_KNIFE) {
         return Plugin_Continue;
     }
 
-    if (weapon < 0) {
-        damage = 0.0;
-        if (Debug) {
-            LogMessage("negative weapon entity id %d, blocking %f damage", weapon, damage);
-        }
-        return Plugin_Changed;
+    if (client != Entity[INDEX_T] && client != Entity[INDEX_CT]) {
+        return Plugin_Continue;
+    }
+
+    if (!(buttons & (IN_ATTACK | IN_ATTACK2))) {
+        return Plugin_Continue;
     }
 
     char entity[ENTITY_NAME_MAX];
-    GetEdictClassname(weapon, entity, ENTITY_NAME_MAX);
+    GetClientWeapon(client, entity, ENTITY_NAME_MAX);
 
     bool allow = false;
     if (StrEqual(KNIFE_BAYONET, entity) || StrEqual(KNIFE_MELEE, entity)) {
@@ -236,19 +219,19 @@ public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& dam
         }
     }
 
-    if (allow) {
+    if (!allow) {
         if (Debug) {
-            LogMessage("allowing %f damage from \"%s\" (%d)", damage, entity, weapon);
+            LogMessage("blocking use of %s by client %d", entity, client);
         }
-        return Plugin_Continue;
+        buttons &= ~(IN_ATTACK | IN_ATTACK2);
+        return Plugin_Changed;
     }
 
     if (Debug) {
-        LogMessage("blocking %f damage from \"%s\" (%d)", damage, entity, weapon);
+        LogMessage("allowing use of %s by client %d", entity, client);
     }
 
-    damage = 0.0;
-    return Plugin_Changed;
+    return Plugin_Handled;
 }
 
 public Action OnPlayerDeath(Event event, const char[] eventName, bool dontBroadcast) {
