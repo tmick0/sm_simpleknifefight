@@ -17,6 +17,7 @@ public Plugin myinfo =
 #define CVAR_DEBUG "sm_simpleknifefight_debug"
 
 #define CMD_KNIFEFIGHT "knifefight"
+#define CMD_KNIFEFIGHT_SHORT "kf"
 
 #define ENTITY_NAME_MAX 128
 
@@ -58,6 +59,7 @@ public void OnPluginStart() {
     HookConVarChange(CvarDebug, CvarsUpdated);
     HookConVarChange(CvarEnable, CvarsUpdated);
     RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
+    RegConsoleCmd(CMD_KNIFEFIGHT_SHORT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
     HookEvent("round_end", OnRoundEnd, EventHookMode_PostNoCopy);
 
@@ -76,8 +78,6 @@ void ReinitState(bool check) {
     State = STATE_NOT_1v1;
     Voted[INDEX_T] = 0;
     Voted[INDEX_CT] = 0;
-    Entity[INDEX_T] = -1;
-    Entity[INDEX_CT] = -1;
 
     if (check && Enabled) {
         Check1v1();
@@ -113,21 +113,18 @@ Action KnifeFightCmd(int client, int argc) {
         return Plugin_Handled;
     }
 
-    if (!IsPlayerAlive(client)) {
-        ReplyToCommand(client, "The %s command is for the players who are alive", CMD_KNIFEFIGHT);
-        return Plugin_Handled;
-    }
-
-    int team = GetClientTeam(client);
     int slot;
-    if (team == TEAM_T) {
+    int other_slot;
+    if (client == Entity[INDEX_T]) {
         slot = INDEX_T;
+        other_slot = INDEX_CT;
     }
-    else if (team == TEAM_CT) {
+    else if (client == Entity[INDEX_CT]) {
         slot = INDEX_CT;
+        other_slot = INDEX_T;
     }
     else {
-        ReplyToCommand(client, "Could not determine your team, this shouldn't happen, tell a dev");
+        ReplyToCommand(client, "The %s command is for the players who are alive", CMD_KNIFEFIGHT);
         return Plugin_Handled;
     }
 
@@ -137,13 +134,14 @@ Action KnifeFightCmd(int client, int argc) {
     }
 
     Voted[slot] = 1;
-    Entity[slot] = client;
 
     char name[128];
     GetClientName(client, name, sizeof(name));
     PrintToChatAll("%s has agreed to a knife fight!", name);
-
-    if (Voted[INDEX_T] && Voted[INDEX_CT]) {
+    if (!Voted[other_slot]) {
+        PrintHintText(Entity[other_slot], "%s has challenged you to a knife fight! Type !%s to accept.", name, CMD_KNIFEFIGHT_SHORT);
+    }
+    else {
         StartKnifeFight();
     }
 
@@ -172,9 +170,8 @@ void Check1v1() {
         return;
     }
 
-    int clients[2];
-    clients[INDEX_T] = -1;
-    clients[INDEX_CT] = -1;
+    Entity[INDEX_T] = -1;
+    Entity[INDEX_CT] = -1;
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
@@ -189,21 +186,21 @@ void Check1v1() {
                 continue;
             }
 
-            if(clients[team] != -1) {
+            if (Entity[team] != -1) {
                 return;
             }
 
-            clients[team] = i;
+            Entity[team] = i;
         }
 	}
 
-    if (clients[INDEX_T] != -1 && clients[INDEX_CT] != -1) {
+    if (Entity[INDEX_T] != -1 && Entity[INDEX_CT] != -1) {
         State = STATE_1v1;
         #define msg "It's 1v1! Type !%s to knife fight!"
-        PrintHintText(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintToChat(clients[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintHintText(clients[INDEX_CT], msg, CMD_KNIFEFIGHT);
-        PrintToChat(clients[INDEX_CT], msg, CMD_KNIFEFIGHT);
+        PrintHintText(Entity[INDEX_T], msg, CMD_KNIFEFIGHT);
+        PrintToChat(Entity[INDEX_T], msg, CMD_KNIFEFIGHT);
+        PrintHintText(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT);
+        PrintToChat(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT);
         #undef msg
     }
 }
