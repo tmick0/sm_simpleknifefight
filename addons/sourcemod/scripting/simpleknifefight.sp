@@ -1,5 +1,7 @@
 #include <sourcemod>
 #include <sdkhooks>
+#include <sdktools>
+#include <cstrike>
 #include <autoexecconfig>
 
 #pragma newdecls required
@@ -9,12 +11,14 @@ public Plugin myinfo =
     name = "simpleknifefight",
     author = "tmick0",
     description = "Allows players to choose to knife fight in a 1v1",
-    version = "0.1",
+    version = "0.2",
     url = "github.com/tmick0/sm_simpleknifefight"
 };
 
 #define CVAR_ENABLE "sm_simpleknifefight_enable"
 #define CVAR_DEBUG "sm_simpleknifefight_debug"
+#define CVAR_MINHEALTH "sm_simpleknifefight_minhealth"
+#define CVAR_MINTIME "sm_simpleknifefight_mintime"
 
 #define CMD_KNIFEFIGHT "knifefight"
 #define CMD_KNIFEFIGHT_SHORT "kf"
@@ -28,15 +32,16 @@ public Plugin myinfo =
 
 int Enabled;
 int Debug;
+int MinTime;
+int MinHealth;
 int State;
+int RoundStartTime = 0;
 int Voted[2];
 int Entity[2];
 
 #define INDEX_T 0
 #define INDEX_CT 1
-
-#define TEAM_T 2
-#define TEAM_CT 3
+#define INDEX_COUNT 2
 
 #define STATE_NOT_1v1 0
 #define STATE_1v1 1
@@ -44,24 +49,33 @@ int Entity[2];
 
 ConVar CvarEnable;
 ConVar CvarDebug;
+ConVar CvarMinTime;
+ConVar CvarMinHealth;
+
+#define FOR_EACH_INDEX(%1) for (int %1 = 0; %1 < INDEX_COUNT; ++%1)
 
 public void OnPluginStart() {
     // init config    
     AutoExecConfig_SetCreateDirectory(true);
     AutoExecConfig_SetCreateFile(true);
     AutoExecConfig_SetFile("plugin_simpleknifefight");
-    CvarDebug = CreateConVar(CVAR_DEBUG, "0", "1 = enable debug output, 0 = disable");
-    CvarEnable = CreateConVar(CVAR_ENABLE, "0", "1 = enable !knifefight in 1v1, 0 = disable");
+    CvarDebug = AutoExecConfig_CreateConVar(CVAR_DEBUG, "0", "1 = enable debug output, 0 = disable");
+    CvarEnable = AutoExecConfig_CreateConVar(CVAR_ENABLE, "0", "1 = enable !knifefight in 1v1, 0 = disable");
+    CvarMinTime = AutoExecConfig_CreateConVar(CVAR_MINTIME, "0", "minimum remaining round time in seconds for knife fight (time will be added to reach this value)")
+    CvarMinHealth = AutoExecConfig_CreateConVar(CVAR_MINHEALTH, "0", "minimum remaining player health for knife fight (health will be added to reach this value)")
     AutoExecConfig_ExecuteFile();
     AutoExecConfig_CleanFile();
 
     // init hooks
     HookConVarChange(CvarDebug, CvarsUpdated);
     HookConVarChange(CvarEnable, CvarsUpdated);
+    HookConVarChange(CvarMinTime, CvarsUpdated);
+    HookConVarChange(CvarMinHealth, CvarsUpdated);
     RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
     RegConsoleCmd(CMD_KNIFEFIGHT_SHORT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
     HookEvent("round_end", OnRoundEnd, EventHookMode_PostNoCopy);
+    HookEvent("round_start", OnRoundStart, EventHookMode_PostNoCopy);
 
     // load config
     SetCvars();
@@ -76,8 +90,9 @@ void ReinitState(bool check) {
     }
 
     State = STATE_NOT_1v1;
-    Voted[INDEX_T] = 0;
-    Voted[INDEX_CT] = 0;
+    FOR_EACH_INDEX(i) {
+        Voted[i] = 0;
+    }
 
     if (check && Enabled) {
         Check1v1();
@@ -93,6 +108,8 @@ void SetCvars() {
 
     Debug = CvarDebug.IntValue;
     Enabled = CvarEnable.IntValue;
+    MinTime = CvarMinTime.IntValue;
+    MinHealth = CvarMinHealth.IntValue;
 
     if (Enabled && !prevEnabled) {
         ReinitState(true);
@@ -152,17 +169,54 @@ void StartKnifeFight() {
     State = STATE_KNIFE;
     #define msg "Let the knife fight begin!"
     PrintToChatAll(msg);
-    PrintHintText(Entity[INDEX_T], msg);
-    PrintHintText(Entity[INDEX_CT], msg);
+    FOR_EACH_INDEX(i) {
+        PrintHintText(Entity[i], msg);
+    }
     #undef msg
 
-    SDKHook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
-    SDKHook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
+    FOR_EACH_INDEX(i) {
+        int health = GetClientHealth(Entity[i]);
+        if (health < MinHealth) {
+            if (Debug) {
+                LogMessage("health of player %d was %d, setting it to %d", Entity[i], health, MinTime);
+            }
+            SetEntityHealth(Entity[i], MinHealth);
+        }
+        int weapon = GetPlayerWeaponSlot(Entity[i], CS_SLOT_KNIFE);
+        if (weapon == -1) {
+            weapon = GivePlayerItem(Entity[i], KNIFE_GENERIC);
+        }
+        SetEntPropEnt(Entity[i], Prop_Send, "m_hActiveWeapon", weapon);
+        SDKHook(Entity[i], SDKHook_OnTakeDamage, OnTakeDamage);
+    }
+
+    int roundTimeLimit = GameRules_GetProp("m_iRoundTime", 4, 0);
+    int timeRemaining = RoundStartTime + roundTimeLimit - GetTime();
+    if (Debug) {
+        LogMessage("round time limit %d", roundTimeLimit);
+        LogMessage("round start time %d", RoundStartTime);
+        LogMessage("current time %d", GetTime());
+        LogMessage("remaining round time was %d", timeRemaining);
+    }
+    
+    if (timeRemaining < MinTime) {
+        if (RoundStartTime > 0) {
+            roundTimeLimit += (MinTime - timeRemaining);
+            if (Debug) {
+                LogMessage("setting round time to %d", roundTimeLimit);
+            }
+            GameRules_SetProp("m_iRoundTime", roundTimeLimit, 4, 0, true);
+        }
+        else {
+            LogMessage("RoundStartTime was not set, not extending the round");
+        }
+    }
 }
 
 void EndKnifeFight() {
-    SDKUnhook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
-    SDKUnhook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
+    FOR_EACH_INDEX(i) {
+        SDKUnhook(Entity[i], SDKHook_OnTakeDamage, OnTakeDamage);
+    }
 }
 
 void Check1v1() {
@@ -170,16 +224,17 @@ void Check1v1() {
         return;
     }
 
-    Entity[INDEX_T] = -1;
-    Entity[INDEX_CT] = -1;
+    FOR_EACH_INDEX(i) {
+        Entity[i] = -1;
+    }
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
             int team = GetClientTeam(i);
-            if (team == TEAM_T) {
+            if (team == CS_TEAM_T) {
                 team = INDEX_T;
             }
-            else if (team == TEAM_CT) {
+            else if (team == CS_TEAM_CT) {
                 team = INDEX_CT;
             }
             else {
@@ -197,10 +252,10 @@ void Check1v1() {
     if (Entity[INDEX_T] != -1 && Entity[INDEX_CT] != -1) {
         State = STATE_1v1;
         #define msg "It's 1v1! Type !%s to knife fight!"
-        PrintHintText(Entity[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintToChat(Entity[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintHintText(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT);
-        PrintToChat(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT);
+        FOR_EACH_INDEX(i) {
+            PrintHintText(Entity[i], msg, CMD_KNIFEFIGHT);
+            PrintToChat(Entity[i], msg, CMD_KNIFEFIGHT);
+        }
         #undef msg
     }
 }
@@ -294,4 +349,8 @@ public Action OnRoundEnd(Event event, const char[] eventName, bool dontBroadcast
     }
     ReinitState(false);
     return Plugin_Handled;
+}
+
+public Action OnRoundStart(Event event, const char[] eventName, bool dontBroadcast) {
+    RoundStartTime = GetTime() + FindConVar("mp_freezetime").IntValue;
 }
