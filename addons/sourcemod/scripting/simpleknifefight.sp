@@ -42,9 +42,6 @@ int Entity[2];
 #define INDEX_T 0
 #define INDEX_CT 1
 
-#define TEAM_T 2
-#define TEAM_CT 3
-
 #define STATE_NOT_1v1 0
 #define STATE_1v1 1
 #define STATE_KNIFE 2
@@ -224,10 +221,10 @@ void Check1v1() {
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
             int team = GetClientTeam(i);
-            if (team == TEAM_T) {
+            if (team == CS_TEAM_T) {
                 team = INDEX_T;
             }
-            else if (team == TEAM_CT) {
+            else if (team == CS_TEAM_CT) {
                 team = INDEX_CT;
             }
             else {
