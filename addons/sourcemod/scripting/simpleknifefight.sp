@@ -1,5 +1,7 @@
 #include <sourcemod>
 #include <sdkhooks>
+#include <sdktools>
+#include <cstrike>
 #include <autoexecconfig>
 
 #pragma newdecls required
@@ -9,12 +11,14 @@ public Plugin myinfo =
     name = "simpleknifefight",
     author = "tmick0",
     description = "Allows players to choose to knife fight in a 1v1",
-    version = "0.1",
+    version = "0.2",
     url = "github.com/tmick0/sm_simpleknifefight"
 };
 
 #define CVAR_ENABLE "sm_simpleknifefight_enable"
 #define CVAR_DEBUG "sm_simpleknifefight_debug"
+#define CVAR_MINHEALTH "sm_simpleknifefight_minhealth"
+#define CVAR_MINTIME "sm_simpleknifefight_mintime"
 
 #define CMD_KNIFEFIGHT "knifefight"
 #define CMD_KNIFEFIGHT_SHORT "kf"
@@ -28,7 +32,10 @@ public Plugin myinfo =
 
 int Enabled;
 int Debug;
+int MinTime;
+int MinHealth;
 int State;
+int RoundStartTime;
 int Voted[2];
 int Entity[2];
 
@@ -44,6 +51,8 @@ int Entity[2];
 
 ConVar CvarEnable;
 ConVar CvarDebug;
+ConVar CvarMinTime;
+ConVar CvarMinHealth;
 
 public void OnPluginStart() {
     // init config    
@@ -52,16 +61,21 @@ public void OnPluginStart() {
     AutoExecConfig_SetFile("plugin_simpleknifefight");
     CvarDebug = CreateConVar(CVAR_DEBUG, "0", "1 = enable debug output, 0 = disable");
     CvarEnable = CreateConVar(CVAR_ENABLE, "0", "1 = enable !knifefight in 1v1, 0 = disable");
+    CvarMinTime = CreateConVar(CVAR_MINTIME, "0", "minimum remaining round time in seconds for knife fight (time will be added to reach this value)")
+    CvarMinHealth = CreateConVar(CVAR_MINHEALTH, "0", "minimum remaining player health for knife fight (health will be added to reach this value)")
     AutoExecConfig_ExecuteFile();
     AutoExecConfig_CleanFile();
 
     // init hooks
     HookConVarChange(CvarDebug, CvarsUpdated);
     HookConVarChange(CvarEnable, CvarsUpdated);
+    HookConVarChange(CvarMinTime, CvarsUpdated);
+    HookConVarChange(CvarMinHealth, CvarsUpdated);
     RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
     RegConsoleCmd(CMD_KNIFEFIGHT_SHORT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
     HookEvent("round_end", OnRoundEnd, EventHookMode_PostNoCopy);
+    HookEvent("round_start", OnRoundStart, EventHookMode_PostNoCopy);
 
     // load config
     SetCvars();
@@ -93,6 +107,8 @@ void SetCvars() {
 
     Debug = CvarDebug.IntValue;
     Enabled = CvarEnable.IntValue;
+    MinTime = CvarMinTime.IntValue;
+    MinHealth = CvarMinHealth.IntValue;
 
     if (Enabled && !prevEnabled) {
         ReinitState(true);
@@ -155,6 +171,38 @@ void StartKnifeFight() {
     PrintHintText(Entity[INDEX_T], msg);
     PrintHintText(Entity[INDEX_CT], msg);
     #undef msg
+
+    int health;
+    health = GetClientHealth(Entity[INDEX_T]);
+    if (health < MinHealth) {
+        if (Debug) {
+            LogMessage("health of player %d was %d, setting it to %d", Entity[INDEX_T], health, MinTime);
+        }
+        SetEntityHealth(Entity[INDEX_T], MinHealth);
+    }
+    health = GetClientHealth(Entity[INDEX_CT]);
+    if (health < MinHealth) {
+        if (Debug) {
+            LogMessage("health of player %d was %d, setting it to %d", Entity[INDEX_CT], health, MinTime);
+        }
+        SetEntityHealth(Entity[INDEX_CT], MinHealth);
+    }
+
+    int roundTimeLimit = GameRules_GetProp("m_iRoundTime", 4, 0);
+    int timeRemaining = RoundStartTime + roundTimeLimit - GetTime();
+    if (Debug) {
+        LogMessage("remaining round time was %d", timeRemaining);
+    }
+    if (timeRemaining < MinTime) {
+        roundTimeLimit += (MinTime - timeRemaining);
+        if (Debug) {
+           LogMessage("setting round time to %d", roundTimeLimit);
+        }
+        GameRules_SetProp("m_iRoundTime", roundTimeLimit, 4, 0, true);
+    }
+
+    EquipPlayerWeapon(Entity[INDEX_T], GetPlayerWeaponSlot(Entity[INDEX_T], CS_SLOT_KNIFE));
+    EquipPlayerWeapon(Entity[INDEX_CT], GetPlayerWeaponSlot(Entity[INDEX_CT], CS_SLOT_KNIFE));
 
     SDKHook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
     SDKHook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
@@ -294,4 +342,8 @@ public Action OnRoundEnd(Event event, const char[] eventName, bool dontBroadcast
     }
     ReinitState(false);
     return Plugin_Handled;
+}
+
+public Action OnRoundStart(Event event, const char[] eventName, bool dontBroadcast) {
+    RoundStartTime = GetTime();
 }
