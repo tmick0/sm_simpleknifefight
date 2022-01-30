@@ -59,10 +59,10 @@ public void OnPluginStart() {
     AutoExecConfig_SetCreateDirectory(true);
     AutoExecConfig_SetCreateFile(true);
     AutoExecConfig_SetFile("plugin_simpleknifefight");
-    CvarDebug = CreateConVar(CVAR_DEBUG, "0", "1 = enable debug output, 0 = disable");
-    CvarEnable = CreateConVar(CVAR_ENABLE, "0", "1 = enable !knifefight in 1v1, 0 = disable");
-    CvarMinTime = CreateConVar(CVAR_MINTIME, "0", "minimum remaining round time in seconds for knife fight (time will be added to reach this value)")
-    CvarMinHealth = CreateConVar(CVAR_MINHEALTH, "0", "minimum remaining player health for knife fight (health will be added to reach this value)")
+    CvarDebug = AutoExecConfig_CreateConVar(CVAR_DEBUG, "0", "1 = enable debug output, 0 = disable");
+    CvarEnable = AutoExecConfig_CreateConVar(CVAR_ENABLE, "0", "1 = enable !knifefight in 1v1, 0 = disable");
+    CvarMinTime = AutoExecConfig_CreateConVar(CVAR_MINTIME, "0", "minimum remaining round time in seconds for knife fight (time will be added to reach this value)")
+    CvarMinHealth = AutoExecConfig_CreateConVar(CVAR_MINHEALTH, "0", "minimum remaining player health for knife fight (health will be added to reach this value)")
     AutoExecConfig_ExecuteFile();
     AutoExecConfig_CleanFile();
 
