@@ -35,7 +35,7 @@ int Debug;
 int MinTime;
 int MinHealth;
 int State;
-int RoundStartTime;
+int RoundStartTime = 0;
 int Voted[2];
 int Entity[2];
 
@@ -182,21 +182,30 @@ void StartKnifeFight() {
             }
             SetEntityHealth(Entity[i], MinHealth);
         }
-        EquipPlayerWeapon(Entity[i], GetPlayerWeaponSlot(Entity[i], CS_SLOT_KNIFE));
+        SetEntPropEnt(Entity[i], Prop_Send, "m_hActiveWeapon", GetPlayerWeaponSlot(Entity[i], CS_SLOT_KNIFE));
         SDKHook(Entity[i], SDKHook_OnTakeDamage, OnTakeDamage);
     }
 
     int roundTimeLimit = GameRules_GetProp("m_iRoundTime", 4, 0);
     int timeRemaining = RoundStartTime + roundTimeLimit - GetTime();
     if (Debug) {
+        LogMessage("round time limit %d", roundTimeLimit);
+        LogMessage("round start time %d", RoundStartTime);
+        LogMessage("current time %d", GetTime());
         LogMessage("remaining round time was %d", timeRemaining);
     }
+    
     if (timeRemaining < MinTime) {
-        roundTimeLimit += (MinTime - timeRemaining);
-        if (Debug) {
-           LogMessage("setting round time to %d", roundTimeLimit);
+        if (RoundStartTime > 0) {
+            roundTimeLimit += (MinTime - timeRemaining);
+            if (Debug) {
+                LogMessage("setting round time to %d", roundTimeLimit);
+            }
+            GameRules_SetProp("m_iRoundTime", roundTimeLimit, 4, 0, true);
         }
-        GameRules_SetProp("m_iRoundTime", roundTimeLimit, 4, 0, true);
+        else {
+            LogMessage("RoundStartTime was not set, not extending the round");
+        }
     }
 }
 
