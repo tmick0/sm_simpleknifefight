@@ -352,5 +352,5 @@ public Action OnRoundEnd(Event event, const char[] eventName, bool dontBroadcast
 }
 
 public Action OnRoundStart(Event event, const char[] eventName, bool dontBroadcast) {
-    RoundStartTime = GetTime() - FindConVar("mp_freezetime").IntValue;
+    RoundStartTime = GetTime() + FindConVar("mp_freezetime").IntValue;
 }
