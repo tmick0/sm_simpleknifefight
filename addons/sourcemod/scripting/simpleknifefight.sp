@@ -182,7 +182,11 @@ void StartKnifeFight() {
             }
             SetEntityHealth(Entity[i], MinHealth);
         }
-        SetEntPropEnt(Entity[i], Prop_Send, "m_hActiveWeapon", GetPlayerWeaponSlot(Entity[i], CS_SLOT_KNIFE));
+        int weapon = GetPlayerWeaponSlot(Entity[i], CS_SLOT_KNIFE);
+        if (weapon == -1) {
+            weapon = GivePlayerItem(Entity[i], KNIFE_GENERIC);
+        }
+        SetEntPropEnt(Entity[i], Prop_Send, "m_hActiveWeapon", weapon);
         SDKHook(Entity[i], SDKHook_OnTakeDamage, OnTakeDamage);
     }
 
