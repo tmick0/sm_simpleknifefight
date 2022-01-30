@@ -41,6 +41,7 @@ int Entity[2];
 
 #define INDEX_T 0
 #define INDEX_CT 1
+#define INDEX_COUNT 2
 
 #define STATE_NOT_1v1 0
 #define STATE_1v1 1
@@ -50,6 +51,8 @@ ConVar CvarEnable;
 ConVar CvarDebug;
 ConVar CvarMinTime;
 ConVar CvarMinHealth;
+
+#define FOR_EACH_INDEX(%1) for (int %1 = 0; %1 < INDEX_COUNT; ++%1)
 
 public void OnPluginStart() {
     // init config    
@@ -87,8 +90,9 @@ void ReinitState(bool check) {
     }
 
     State = STATE_NOT_1v1;
-    Voted[INDEX_T] = 0;
-    Voted[INDEX_CT] = 0;
+    FOR_EACH_INDEX(i) {
+        Voted[i] = 0;
+    }
 
     if (check && Enabled) {
         Check1v1();
@@ -165,24 +169,21 @@ void StartKnifeFight() {
     State = STATE_KNIFE;
     #define msg "Let the knife fight begin!"
     PrintToChatAll(msg);
-    PrintHintText(Entity[INDEX_T], msg);
-    PrintHintText(Entity[INDEX_CT], msg);
+    FOR_EACH_INDEX(i) {
+        PrintHintText(Entity[i], msg);
+    }
     #undef msg
 
-    int health;
-    health = GetClientHealth(Entity[INDEX_T]);
-    if (health < MinHealth) {
-        if (Debug) {
-            LogMessage("health of player %d was %d, setting it to %d", Entity[INDEX_T], health, MinTime);
+    FOR_EACH_INDEX(i) {
+        int health = GetClientHealth(Entity[i]);
+        if (health < MinHealth) {
+            if (Debug) {
+                LogMessage("health of player %d was %d, setting it to %d", Entity[i], health, MinTime);
+            }
+            SetEntityHealth(Entity[i], MinHealth);
         }
-        SetEntityHealth(Entity[INDEX_T], MinHealth);
-    }
-    health = GetClientHealth(Entity[INDEX_CT]);
-    if (health < MinHealth) {
-        if (Debug) {
-            LogMessage("health of player %d was %d, setting it to %d", Entity[INDEX_CT], health, MinTime);
-        }
-        SetEntityHealth(Entity[INDEX_CT], MinHealth);
+        EquipPlayerWeapon(Entity[i], GetPlayerWeaponSlot(Entity[i], CS_SLOT_KNIFE));
+        SDKHook(Entity[i], SDKHook_OnTakeDamage, OnTakeDamage);
     }
 
     int roundTimeLimit = GameRules_GetProp("m_iRoundTime", 4, 0);
@@ -197,17 +198,12 @@ void StartKnifeFight() {
         }
         GameRules_SetProp("m_iRoundTime", roundTimeLimit, 4, 0, true);
     }
-
-    EquipPlayerWeapon(Entity[INDEX_T], GetPlayerWeaponSlot(Entity[INDEX_T], CS_SLOT_KNIFE));
-    EquipPlayerWeapon(Entity[INDEX_CT], GetPlayerWeaponSlot(Entity[INDEX_CT], CS_SLOT_KNIFE));
-
-    SDKHook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
-    SDKHook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
 }
 
 void EndKnifeFight() {
-    SDKUnhook(Entity[INDEX_T], SDKHook_OnTakeDamage, OnTakeDamage);
-    SDKUnhook(Entity[INDEX_CT], SDKHook_OnTakeDamage, OnTakeDamage);
+    FOR_EACH_INDEX(i) {
+        SDKUnhook(Entity[i], SDKHook_OnTakeDamage, OnTakeDamage);
+    }
 }
 
 void Check1v1() {
@@ -215,8 +211,9 @@ void Check1v1() {
         return;
     }
 
-    Entity[INDEX_T] = -1;
-    Entity[INDEX_CT] = -1;
+    FOR_EACH_INDEX(i) {
+        Entity[i] = -1;
+    }
 
     for (int i = 1; i <= MaxClients; i++) {
         if (IsClientConnected(i) && IsClientInGame(i) && IsPlayerAlive(i)) {
@@ -242,10 +239,10 @@ void Check1v1() {
     if (Entity[INDEX_T] != -1 && Entity[INDEX_CT] != -1) {
         State = STATE_1v1;
         #define msg "It's 1v1! Type !%s to knife fight!"
-        PrintHintText(Entity[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintToChat(Entity[INDEX_T], msg, CMD_KNIFEFIGHT);
-        PrintHintText(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT);
-        PrintToChat(Entity[INDEX_CT], msg, CMD_KNIFEFIGHT);
+        FOR_EACH_INDEX(i) {
+            PrintHintText(Entity[i], msg, CMD_KNIFEFIGHT);
+            PrintToChat(Entity[i], msg, CMD_KNIFEFIGHT);
+        }
         #undef msg
     }
 }
