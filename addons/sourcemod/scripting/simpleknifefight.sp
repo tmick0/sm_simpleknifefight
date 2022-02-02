@@ -22,6 +22,7 @@ public Plugin myinfo =
 #define CVAR_WAITTIME "sm_simpleknifefight_waittime"
 #define CVAR_FREEZE "sm_simpleknifefight_freeze"
 #define CVAR_TELEPORT "sm_simpleknifefight_teleport"
+#define CVAR_MINSPAWNDISTANCE "sm_simpleknifefight_minspawndistance"
 
 #define CMD_KNIFEFIGHT "knifefight"
 #define CMD_KNIFEFIGHT_SHORT "kf"
@@ -41,6 +42,7 @@ int RoundStartTime;
 int WaitTime;
 int Freeze;
 int Teleport;
+float MinSpawnDistance;
 
 int State;
 int Voted[2];
@@ -67,6 +69,7 @@ ConVar CvarMinHealth;
 ConVar CvarWaitTime;
 ConVar CvarFreeze;
 ConVar CvarTeleport;
+ConVar CvarMinSpawnDistance;
 
 #define FOR_EACH_INDEX(%1) for (int %1 = 0; %1 < INDEX_COUNT; ++%1)
 
@@ -82,6 +85,7 @@ public void OnPluginStart() {
     CvarWaitTime = AutoExecConfig_CreateConVar(CVAR_WAITTIME, "0", "seconds to wait after both players accept before starting the knife fight");
     CvarFreeze = AutoExecConfig_CreateConVar(CVAR_FREEZE, "0", "if 1, players will be frozen during the wait time");
     CvarTeleport = AutoExecConfig_CreateConVar(CVAR_TELEPORT, "0", "if 't' or 'ct' the players engaging in a knife fight will be teleported to that spawn; if 0 do not teleport");
+    CvarMinSpawnDistance = AutoExecConfig_CreateConVar(CVAR_MINSPAWNDISTANCE, "64", "minimum distance between players when teleporting");
     AutoExecConfig_ExecuteFile();
     AutoExecConfig_CleanFile();
 
@@ -93,6 +97,7 @@ public void OnPluginStart() {
     HookConVarChange(CvarWaitTime, CvarsUpdated);
     HookConVarChange(CvarFreeze, CvarsUpdated);
     HookConVarChange(CvarTeleport, CvarsUpdated);
+    HookConVarChange(CvarMinSpawnDistance, CvarsUpdated);
     RegConsoleCmd(CMD_KNIFEFIGHT, KnifeFightCmd, "vote to knife fight in a 1v1");
     RegConsoleCmd(CMD_KNIFEFIGHT_SHORT, KnifeFightCmd, "vote to knife fight in a 1v1");
     HookEvent("player_death", OnPlayerDeath, EventHookMode_PostNoCopy);
@@ -135,6 +140,7 @@ void SetCvars() {
     MinHealth = CvarMinHealth.IntValue;
     Freeze = CvarFreeze.IntValue;
     WaitTime = CvarWaitTime.IntValue;
+    MinSpawnDistance = CvarMinSpawnDistance.FloatValue;
 
     char tp[8];
     CvarTeleport.GetString(tp, sizeof(tp));
@@ -364,14 +370,12 @@ void TeleportPlayers() {
         spawns[count++] = ent;
     }
 
-    // randomly select two spawns and place them in elements [0] and [1]
-    FOR_EACH_INDEX(i) {
-        int j = GetRandomInt(i, count - 1);
-        if (j != i) {
-            int tmp = spawns[i];
-            spawns[i] = spawns[j];
-            spawns[j] = tmp;
-        }
+    // randomly select two spawns
+    int selected[2];
+    selected[0] = GetRandomInt(0, count - 1);
+    selected[1] = GetRandomInt(0, count - 1);
+    while (SpawnDistance(selected[0], selected[1]) < MinSpawnDistance) {
+        selected[1] = GetRandomInt(0, count - 1);
     }
 
     // teleport the players
@@ -384,6 +388,14 @@ void TeleportPlayers() {
         TeleportEntity(Entity[i], vec, ang, vel);
     }
 
+}
+
+float SpawnDistance(int e1, int e2) {
+    float vec1[3];
+    float vec2[3];
+    GetEntPropVector(e1, Prop_Data, "m_vecOrigin", vec1);
+    GetEntPropVector(e2, Prop_Data, "m_vecOrigin", vec2);
+    return GetVectorDistance(vec1, vec2, false);
 }
 
 public Action OnTakeDamage(int victim, int& attacker, int &inflictor, float& damage, int& damagetype, int& weapon, float damageForce[3], float damagePosition[3])
