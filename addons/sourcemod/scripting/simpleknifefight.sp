@@ -37,7 +37,7 @@ int Enabled;
 int Debug;
 int MinTime;
 int MinHealth;
-int RoundStartTime = 0;
+int RoundStartTime;
 float WaitTime;
 int Freeze;
 int Teleport;
@@ -103,6 +103,7 @@ public void OnPluginStart() {
     SetCvars();
 
     // initialize plugin state
+    RoundStartTime = 0;
     ReinitState(true);
 }
 
@@ -227,9 +228,9 @@ void KnifeFightAgreed() {
         LogMessage("current time %d", GetTime());
         LogMessage("remaining round time was %d", timeRemaining);
     }
-    if (timeRemaining < MinTime) {
+    if (timeRemaining < MinTime + WaitTime) {
         if (RoundStartTime > 0) {
-            roundTimeLimit += (MinTime + WaitTime - timeRemaining);
+            roundTimeLimit += ((MinTime + WaitTime) - timeRemaining);
             if (Debug) {
                 LogMessage("setting round time to %d", roundTimeLimit);
             }
