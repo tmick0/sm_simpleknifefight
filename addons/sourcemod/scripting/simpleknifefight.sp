@@ -254,7 +254,7 @@ void KnifeFightAgreed() {
 
 void StartWaitTimer() {
     State = STATE_WAIT;
-    #define msg "The knife fight will begin in %f seconds."
+    #define msg "The knife fight will begin in %.1f seconds."
     PrintToChatAll(msg, WaitTime);
     FOR_EACH_INDEX(i) {
         if (Freeze) {
