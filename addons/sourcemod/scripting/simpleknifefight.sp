@@ -38,7 +38,7 @@ int Debug;
 int MinTime;
 int MinHealth;
 int RoundStartTime;
-float WaitTime;
+int WaitTime;
 int Freeze;
 int Teleport;
 
@@ -134,7 +134,7 @@ void SetCvars() {
     MinTime = CvarMinTime.IntValue;
     MinHealth = CvarMinHealth.IntValue;
     Freeze = CvarFreeze.IntValue;
-    WaitTime = CvarWaitTime.FloatValue;
+    WaitTime = CvarWaitTime.IntValue;
 
     char tp[8];
     CvarTeleport.GetString(tp, sizeof(tp));
@@ -255,7 +255,7 @@ void KnifeFightAgreed() {
 
 void StartWaitTimer() {
     State = STATE_WAIT;
-    #define msg "The knife fight will begin in %.1f seconds."
+    #define msg "The knife fight will begin in %d seconds."
     PrintToChatAll(msg, WaitTime);
     FOR_EACH_INDEX(i) {
         if (Freeze) {
@@ -264,7 +264,7 @@ void StartWaitTimer() {
         PrintHintText(Entity[i], msg, WaitTime);
     }
     #undef msg
-    WaitTimer = CreateTimer(WaitTime, WaitTimerDone, 0, TIMER_FLAG_NO_MAPCHANGE);
+    WaitTimer = CreateTimer(1.0 * WaitTime, WaitTimerDone, 0, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 Action WaitTimerDone(Handle timer) {
