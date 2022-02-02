@@ -28,6 +28,7 @@ public Plugin myinfo =
 #define CMD_KNIFEFIGHT_SHORT "kf"
 
 #define ENTITY_NAME_MAX 128
+#define MAX_MIN_SPAWN_DISTANCE 128.0
 
 #define KNIFE_GENERIC "weapon_knife"
 #define KNIFE_BAYONET "weapon_bayonet"
@@ -141,6 +142,10 @@ void SetCvars() {
     Freeze = CvarFreeze.IntValue;
     WaitTime = CvarWaitTime.IntValue;
     MinSpawnDistance = CvarMinSpawnDistance.FloatValue;
+    if (MinSpawnDistance > MAX_MIN_SPAWN_DISTANCE) {
+        MinSpawnDistance = MAX_MIN_SPAWN_DISTANCE;
+        LogMessage("%s was capped at %f", CVAR_MINSPAWNDISTANCE, MAX_MIN_SPAWN_DISTANCE);
+    }
 
     char tp[8];
     CvarTeleport.GetString(tp, sizeof(tp));
@@ -371,11 +376,15 @@ void TeleportPlayers() {
     }
 
     // randomly select two spawns
+    int tries = 0;
     int selected[2];
     selected[0] = GetRandomInt(0, count - 1);
     selected[1] = GetRandomInt(0, count - 1);
-    while (SpawnDistance(selected[0], selected[1]) < MinSpawnDistance) {
+    while (SpawnDistance(selected[0], selected[1]) < MinSpawnDistance && tries++ < 10) {
         selected[1] = GetRandomInt(0, count - 1);
+    }
+    if (tries >= 10) {
+        LogMessage("warning: took too many attempts to find distant enough spawns, try reducing %s", CVAR_MINSPAWNDISTANCE);
     }
 
     // teleport the players
