@@ -230,7 +230,7 @@ void KnifeFightAgreed() {
     }
     if (timeRemaining < MinTime + WaitTime) {
         if (RoundStartTime > 0) {
-            roundTimeLimit += ((MinTime + WaitTime) - timeRemaining);
+            roundTimeLimit = roundTimeLimit + MinTime + WaitTime - timeRemaining;
             if (Debug) {
                 LogMessage("setting round time to %d", roundTimeLimit);
             }
