@@ -380,7 +380,8 @@ void TeleportPlayers() {
     int selected[2];
     selected[0] = GetRandomInt(0, count - 1);
     selected[1] = GetRandomInt(0, count - 1);
-    while (SpawnDistance(selected[0], selected[1]) < MinSpawnDistance && tries++ < 10) {
+    while (SpawnDistance(spawns, selected[0], selected[1]) < MinSpawnDistance && tries++ < 10) {
+        selected[0] = GetRandomInt(0, count - 1);
         selected[1] = GetRandomInt(0, count - 1);
     }
     if (tries >= 10) {
@@ -392,18 +393,18 @@ void TeleportPlayers() {
         float vec[3];
         float ang[3];
         float vel[3] = {0.0, 0.0, 0.0};
-        GetEntPropVector(spawns[i], Prop_Data, "m_vecOrigin", vec);
-        GetEntPropVector(spawns[i], Prop_Data, "m_angRotation", ang);
+        GetEntPropVector(spawns[selected[i]], Prop_Data, "m_vecOrigin", vec);
+        GetEntPropVector(spawns[selected[i]], Prop_Data, "m_angRotation", ang);
         TeleportEntity(Entity[i], vec, ang, vel);
     }
 
 }
 
-float SpawnDistance(int e1, int e2) {
+float SpawnDistance(const int[] spawns, int e1, int e2) {
     float vec1[3];
     float vec2[3];
-    GetEntPropVector(e1, Prop_Data, "m_vecOrigin", vec1);
-    GetEntPropVector(e2, Prop_Data, "m_vecOrigin", vec2);
+    GetEntPropVector(spawns[e1], Prop_Data, "m_vecOrigin", vec1);
+    GetEntPropVector(spawns[e2], Prop_Data, "m_vecOrigin", vec2);
     return GetVectorDistance(vec1, vec2, false);
 }
 
