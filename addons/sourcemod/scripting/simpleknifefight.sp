@@ -35,6 +35,10 @@ public Plugin myinfo =
 #define KNIFE_MELEE "weapon_melee"
 #define KNIFE_GENERIC_LEN 12
 
+#define CHAT_COLOR "\x07"
+#define HINT_PREFIX "<font color=\"#ff3030\"><b>"
+#define HINT_SUFFIX "</b></font>"
+
 int Enabled;
 int Debug;
 int MinTime;
@@ -201,9 +205,9 @@ Action KnifeFightCmd(int client, int argc) {
 
     char name[128];
     GetClientName(client, name, sizeof(name));
-    PrintToChatAll("%s has agreed to a knife fight!", name);
+    PrintToChatAll(CHAT_COLOR..."%s has agreed to a knife fight!", name);
     if (!Voted[other_slot]) {
-        PrintHintText(Entity[other_slot], "%s has challenged you to a knife fight! Type !%s to accept.", name, CMD_KNIFEFIGHT_SHORT);
+        PrintHintText(Entity[other_slot], HINT_PREFIX..."%s has challenged you to a knife fight! Type !%s to accept."...HINT_SUFFIX, name, CMD_KNIFEFIGHT_SHORT);
     }
     else {
         KnifeFightAgreed();
@@ -267,12 +271,12 @@ void KnifeFightAgreed() {
 void StartWaitTimer() {
     State = STATE_WAIT;
     #define msg "The knife fight will begin in %d seconds."
-    PrintToChatAll(msg, WaitTime);
+    PrintToChatAll(CHAT_COLOR...msg, WaitTime);
     FOR_EACH_INDEX(i) {
         if (Freeze) {
             SetEntityMoveType(Entity[i], MOVETYPE_NONE);
         }
-        PrintHintText(Entity[i], msg, WaitTime);
+        PrintHintText(Entity[i], HINT_PREFIX...msg...HINT_SUFFIX, WaitTime);
     }
     #undef msg
     WaitTimer = CreateTimer(1.0 * WaitTime, WaitTimerDone, 0, TIMER_FLAG_NO_MAPCHANGE);
@@ -292,9 +296,9 @@ Action WaitTimerDone(Handle timer) {
 void StartKnifeFight() {
     State = STATE_KNIFE;
     #define msg "Let the knife fight begin!"
-    PrintToChatAll(msg);
+    PrintToChatAll(CHAT_COLOR...msg);
     FOR_EACH_INDEX(i) {
-        PrintHintText(Entity[i], msg);
+        PrintHintText(Entity[i], HINT_PREFIX...msg...HINT_SUFFIX);
     }
     #undef msg
 }
@@ -343,8 +347,8 @@ void Check1v1() {
         State = STATE_1v1;
         #define msg "It's 1v1! Type !%s to knife fight!"
         FOR_EACH_INDEX(i) {
-            PrintHintText(Entity[i], msg, CMD_KNIFEFIGHT);
-            PrintToChat(Entity[i], msg, CMD_KNIFEFIGHT);
+            PrintHintText(Entity[i], HINT_PREFIX...msg...HINT_SUFFIX, CMD_KNIFEFIGHT);
+            PrintToChat(Entity[i], CHAT_COLOR...msg, CMD_KNIFEFIGHT);
         }
         #undef msg
     }
