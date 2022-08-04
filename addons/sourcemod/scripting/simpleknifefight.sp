@@ -3,6 +3,7 @@
 #include <sdktools>
 #include <cstrike>
 #include <autoexecconfig>
+#include <nativevotes>
 
 #pragma newdecls required
 
@@ -49,6 +50,8 @@ int State;
 int Voted[2];
 int Entity[2];
 Handle WaitTimer = INVALID_HANDLE;
+NativeVote VoteHandle;
+bool VoteValid = false;
 
 #define INDEX_T 0
 #define INDEX_CT 1
@@ -126,6 +129,8 @@ void ReinitState(bool check) {
     if (check && Enabled) {
         Check1v1();
     }
+
+    EndVote(false);
 }
 
 void CvarsUpdated(ConVar cvar, const char[] oldval, const char[] newval) {
@@ -161,6 +166,61 @@ void SetCvars() {
     if (Enabled && !prevEnabled) {
         ReinitState(true);
     }
+}
+
+void ShowVote(int client, int enemy) {
+    int tmp[1];
+    tmp[0] = client;
+
+    VoteHandle = new NativeVote(VoteResponseHandler, NativeVotesType_Custom_YesNo);
+    VoteHandle.Initiator = enemy;
+    VoteHandle.SetTitle("Knife?");
+    VoteHandle.SetDetails("It's 1v1. Agree to a knife fight?");
+    VoteHandle.DisplayVote(tmp, 1, 15, 0);
+    VoteValid = true;
+}
+
+void EndVote(bool success, bool via_command=false) {
+    if (VoteValid) {
+        FOR_EACH_INDEX(i) {
+            if (!Voted[i]) {
+                if (success) {
+                    VoteHandle.DisplayPassCustomToOne(Entity[i], "Knife fight accepted.");
+                    if (!via_command) {
+                        KnifeFightCmd(Entity[i], 0);
+                    }
+                } else {
+                    VoteHandle.DisplayFail();
+                }
+            }
+        }
+        VoteHandle.Close();
+        VoteValid = false;
+    }
+}
+
+public int VoteResponseHandler(NativeVote vote, MenuAction action, int param1, int param2) {
+	switch (action) {
+		case MenuAction_End: {
+			vote.Close();
+		}
+		
+		case MenuAction_VoteCancel: {
+			if (param1 == VoteCancel_NoVotes) {
+				EndVote(false);
+			} else {
+				EndVote(false);
+			}
+		}
+		
+		case MenuAction_VoteEnd: {
+			if (param1 == NATIVEVOTES_VOTE_NO) {
+				EndVote(false);
+			} else {
+				EndVote(true);
+			}
+		}
+	}
 }
 
 Action KnifeFightCmd(int client, int argc) {
@@ -201,11 +261,15 @@ Action KnifeFightCmd(int client, int argc) {
 
     char name[128];
     GetClientName(client, name, sizeof(name));
-    PrintToChatAll("%s has agreed to a knife fight!", name);
+    
     if (!Voted[other_slot]) {
-        PrintHintText(Entity[other_slot], "%s has challenged you to a knife fight! Type !%s to accept.", name, CMD_KNIFEFIGHT_SHORT);
+        PrintToChatAll("%s wants to knife fight!", name);
+        PrintHintText(Entity[other_slot], "%s has challenged you to a knife fight!", name, CMD_KNIFEFIGHT_SHORT);
+        ShowVote(Entity[other_slot], Entity[slot]);
     }
     else {
+        PrintToChatAll("%s has agreed to a knife fight!", name);
+        EndVote(true, true);
         KnifeFightAgreed();
     }
 
